@@ -31,8 +31,12 @@ function startCountdown() {
 
       if (retryCount >= maxRetries) {
         clearInterval(countdownTimer);
-        statusMessage.textContent =
-          "Tidak bisa terhubung. Silakan periksa koneksi internet Anda.";
+
+        // Ganti isi statusMessage jadi pesan + tombol reload
+        statusMessage.innerHTML = `
+          <div class="mb-3">❌ Tidak bisa terhubung.<br>Silakan periksa koneksi internet Anda.</div>
+          <button class="btn btn-danger btn-sm" onclick="location.reload()">🔄 Reload Page</button>
+        `;
         return;
       }
 
