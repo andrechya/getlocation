@@ -77,25 +77,42 @@
         margin-bottom: 1rem;
         opacity: 0.5;
       }
-      @media (max-width: 600px) {
-        #map {
-          height: 50vh;
-        }
+
+      /* Loading Overlay */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      .loading-overlay.active {
+        visibility: visible;
+        opacity: 1;
       }
 
+      /* Loader Animation */
       .loader-circle-21 {
         position: relative;
         display: inline-block;
-        width: 50px;
-        height: 50px;
+        width: 80px;
+        height: 80px;
       }
       .loader-circle-21:before,
       .loader-circle-21:after {
         content: "";
         display: block;
-        height: 30px;
-        width: 30px;
-        border: 2px solid #bbb;
+        height: 60px;
+        width: 60px;
+        border: 3px solid #a96321;
         border-radius: 50%;
         border-left-color: transparent;
         border-right-color: transparent;
@@ -103,27 +120,26 @@
         position: absolute;
         left: 50%;
         top: 50%;
-        margin-left: -17px;
-        margin-top: -17px;
+        margin-left: -33px;
+        margin-top: -33px;
       }
       .loader-circle-21:before {
-        height: 20px;
-        width: 20px;
-        margin-left: -12px;
-        margin-top: -12px;
-        border-color: transparent #bbb;
+        height: 40px;
+        width: 40px;
+        margin-left: -23px;
+        margin-top: -23px;
+        border-color: transparent #fff;
         animation: linear anmL-loader-circle-21 0.5s infinite;
       }
       .loader-circle-21 span {
         position: absolute;
         top: 50%;
         left: 50%;
-        height: 10px;
-        width: 10px;
-        background: #bbb;
+        height: 20px;
+        width: 20px;
         border-radius: 50%;
-        margin-left: -5px;
-        margin-top: -5px;
+        margin-left: -10px;
+        margin-top: -10px;
         animation: linear loader-circle-21-pulse 1s infinite;
       }
       @keyframes loader-circle-21-pulse {
@@ -145,9 +161,29 @@
           transform: rotate(180deg);
         }
       }
+
+      .loading-text {
+        color: white;
+        margin-top: 20px;
+        font-size: 1.2rem;
+        text-align: center;
+      }
+
+      @media (max-width: 600px) {
+        #map {
+          height: 50vh;
+        }
+      }
     </style>
   </head>
   <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="text-center">
+        <div class="loader-circle-21"><span></span></div>
+        <div class="loading-text">Mengambil lokasi...</div>
+      </div>
+    </div>
     <div class="container py-4">
       <h2 class="text-center mb-4">Lokasi Saya</h2>
 
@@ -244,6 +280,17 @@
       let accuracyCircle = null;
       let locationHistory =
         JSON.parse(localStorage.getItem("locationHistory")) || [];
+      const loadingOverlay = document.getElementById("loadingOverlay");
+
+      // Fungsi untuk menampilkan loading
+      function showLoading() {
+        loadingOverlay.classList.add("active");
+      }
+
+      // Fungsi untuk menyembunyikan loading
+      function hideLoading() {
+        loadingOverlay.classList.remove("active");
+      }
 
       // Fungsi untuk konfirmasi hapus history dengan SweetAlert
       function confirmClearHistory() {
@@ -516,23 +563,16 @@
       // Ambil lokasi
       function getLocation() {
         if (navigator.geolocation) {
-          // Tampilkan loading SweetAlert
-          Swal.fire({
-            title: "Mengambil lokasi",
-            text: "Sedang mendapatkan koordinat presisi tinggi...",
-            allowOutsideClick: false,
-            didOpen: () => {
-              Swal.showLoading();
-            },
-          });
+          // Tampilkan loading overlay
+          showLoading();
 
           navigator.geolocation.getCurrentPosition(
             (position) => {
-              Swal.close();
+              hideLoading();
               showPosition(position);
             },
             (error) => {
-              Swal.close();
+              hideLoading();
               showError(error);
             },
             {
@@ -542,6 +582,7 @@
             }
           );
         } else {
+          hideLoading();
           Swal.fire({
             icon: "error",
             title: "Tidak didukung",
@@ -561,11 +602,20 @@
             title: "Akurasi GPS Buruk",
             html: "Akurasi GPS saat ini tidak optimal.<br><br>Silakan:<br>• Aktifkan GPS<br>• Buka di area terbuka<br>• Refresh halaman dan coba lagi",
             confirmButtonText: "Mengerti",
+            confirmButtonColor: "#203659",
+            cancelButtonText: "Cancel",
+            background: "#ffff",
+            color: "#5f5f5f",
+            customClass: {
+              popup: "dark-popup",
+              title: "dark-title",
+              content: "dark-content",
+            },
           });
         } else {
           // Tampilkan notifikasi sukses
           Swal.fire({
-            position: "top-end",
+            position: "center",
             icon: "success",
             title: "Lokasi berhasil didapatkan",
             text: `Akurasi: ±${accuracy.toFixed(2)} meter`,
@@ -667,7 +717,7 @@
 
         // Gunakan SweetAlert untuk notifikasi
         Swal.fire({
-          position: "top-end",
+          position: "center",
           icon: "success",
           title: "Tersalin!",
           text: `Koordinat ${el.value} berhasil disalin`,
@@ -691,7 +741,7 @@
           htmlEl.setAttribute("data-bs-theme", "dark");
           localStorage.setItem("theme", "dark");
           Swal.fire({
-            position: "top-end",
+            position: "center",
             icon: "success",
             title: "Mode Gelap Diaktifkan",
             showConfirmButton: false,
@@ -701,7 +751,7 @@
           htmlEl.setAttribute("data-bs-theme", "light");
           localStorage.setItem("theme", "light");
           Swal.fire({
-            position: "top-end",
+            position: "center",
             icon: "success",
             title: "Mode Terang Diaktifkan",
             showConfirmButton: false,
