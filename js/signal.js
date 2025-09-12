@@ -1,41 +1,59 @@
 const overlay = document.getElementById("connectionOverlay");
 const statusMessage = document.getElementById("statusMessage");
+
 let countdown = 15;
 let countdownTimer;
+let retryCount = 0;
+const maxRetries = 3; // berapa kali mencoba rejoin
 
 function showOverlay() {
   overlay.style.display = "flex";
-  countdown = 15;
-  updateMessage();
-  clearInterval(countdownTimer);
-  countdownTimer = setInterval(() => {
-    countdown--;
-    if (countdown <= 0) countdown = 15;
-    updateMessage();
-  }, 1000);
+  retryCount = 0; // reset kalau offline baru
+  startCountdown();
 }
 
 function hideOverlay() {
   overlay.style.display = "none";
   clearInterval(countdownTimer);
+  retryCount = 0;
+}
+
+function startCountdown() {
+  countdown = 15;
+  updateMessage();
+
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    countdown--;
+
+    if (countdown <= 0) {
+      retryCount++;
+
+      if (retryCount >= maxRetries) {
+        clearInterval(countdownTimer);
+        statusMessage.textContent =
+          "Tidak bisa terhubung. Silakan periksa koneksi internet Anda.";
+        return;
+      }
+
+      countdown = 15; // reset hitung mundur
+    }
+
+    updateMessage();
+  }, 1000);
 }
 
 function updateMessage() {
-  statusMessage.textContent = `Rejoin failed... trying again in ${countdown} seconds`;
+  if (retryCount < maxRetries) {
+    statusMessage.textContent = `Rejoin failed... trying again in ${countdown} seconds (Percobaan ${retryCount + 1}/${maxRetries})`;
+  }
 }
 
-// Jalankan saat status jaringan berubah
-window.addEventListener("offline", () => {
-  console.log("🔴 Offline terdeteksi");
-  showOverlay();
-});
+// Event listener offline/online
+window.addEventListener("offline", showOverlay);
+window.addEventListener("online", hideOverlay);
 
-window.addEventListener("online", () => {
-  console.log("🟢 Online kembali");
-  hideOverlay();
-});
-
-// Periksa status saat pertama kali halaman dibuka
+// Status awal
 if (!navigator.onLine) {
   showOverlay();
 } else {
