@@ -1,0 +1,86 @@
+/* Overlay transparan (disable klik) */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgb(255 255 255 / 39%);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  pointer-events: auto;
+  /* blok klik */
+}
+
+/* Popup box */
+.popup {
+  background: white;
+  border-radius: 10px;
+  padding: 25px 75px;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 260px;
+}
+
+/* Ripple animation */
+.ripple {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 15px;
+}
+
+.circle {
+  position: absolute;
+  border: 2px solid #4a90e2;
+  border-radius: 50%;
+  animation: ripple 2s ease-out infinite;
+  opacity: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.circle:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.circle:nth-child(2) {
+  animation-delay: 0.6s;
+}
+
+.circle:nth-child(3) {
+  animation-delay: 1.2s;
+}
+
+@keyframes ripple {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0.7;
+  }
+
+  100% {
+    width: 100px;
+    height: 100px;
+    opacity: 0;
+  }
+}
+
+/* Text */
+.status-message {
+  font-size: 15px;
+  color: #333;
+  text-align: center;
+}
+
+.overlay {
+  cursor: none;
+  /* sembunyikan kursor */
+  user-select: none;
+  /* tidak bisa seleksi teks */
+}
