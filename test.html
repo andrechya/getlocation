@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dapatkan Lokasi dengan OpenStreetMap</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- SweetAlert2 CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
+    />
+    <style>
+      body {
+        background: var(--bs-body-bg);
+      }
+      #map {
+        height: 60vh; /* tinggi peta 60% layar */
+        border-radius: 0.5rem;
+        margin-top: 1rem;
+      }
+      .history-item {
+        border-left: 3px solid #0d6efd;
+        transition: all 0.2s ease;
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .history-item:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        cursor: pointer;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      .history-container {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 0.5rem;
+      }
+      .editable-name {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .editable-name:hover {
+        text-decoration: underline;
+        color: #0d6efd;
+      }
+      .location-time {
+        font-size: 0.8rem;
+        color: #6c757d;
+      }
+      .location-coords {
+        font-family: monospace;
+        font-size: 0.9rem;
+        margin-bottom: 0.3rem;
+      }
+      .location-accuracy {
+        font-size: 0.8rem;
+        color: #6c757d;
+      }
+      .history-badge {
+        font-size: 0.7rem;
+        margin-left: 0.5rem;
+      }
+      .empty-history {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+      }
+      .empty-history i {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+      }
+
+      /* Loading Overlay */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      .loading-overlay.active {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      /* Loader Animation */
+      .loader-circle-21 {
+        position: relative;
+        display: inline-block;
+        width: 80px;
+        height: 80px;
+      }
+      .loader-circle-21:before,
+      .loader-circle-21:after {
+        content: "";
+        display: block;
+        height: 60px;
+        width: 60px;
+        border: 3px solid #fff;
+        border-radius: 50%;
+        border-left-color: transparent;
+        border-right-color: transparent;
+        animation: linear anmR-loader-circle-21 1s infinite;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        margin-left: -33px;
+        margin-top: -33px;
+      }
+      .loader-circle-21:before {
+        height: 40px;
+        width: 40px;
+        margin-left: -23px;
+        margin-top: -23px;
+        border-color: transparent #fff;
+        animation: linear anmL-loader-circle-21 0.5s infinite;
+      }
+      .loader-circle-21 span {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        height: 20px;
+        width: 20px;
+        background: #fff;
+        border-radius: 50%;
+        margin-left: -10px;
+        margin-top: -10px;
+        animation: linear loader-circle-21-pulse 1s infinite;
+      }
+      @keyframes loader-circle-21-pulse {
+        0%,
+        100% {
+          transform: scale(0, 0);
+        }
+        50% {
+          transform: scale(1.5, 1.5);
+        }
+      }
+      @keyframes anmR-loader-circle-21 {
+        to {
+          transform: rotate(180deg);
+        }
+      }
+      @keyframes anmL-loader-circle-21 {
+        from {
+          transform: rotate(180deg);
+        }
+      }
+
+      .loading-text {
+        color: white;
+        margin-top: 20px;
+        font-size: 1.2rem;
+        text-align: center;
+      }
+
+      @media (max-width: 600px) {
+        #map {
+          height: 50vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="text-center">
+        <div class="loader-circle-21"><span></span></div>
+        <div class="loading-text">Mengambil lokasi...</div>
+      </div>
+    </div>
+
+    <div class="container py-4">
+      <h2 class="text-center mb-4">Lokasi Saya</h2>
+
+      <div class="card shadow-sm p-3">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label for="latitude" class="form-label">Latitude</label>
+            <input
+              type="text"
+              class="form-control"
+              id="latitude"
+              readonly
+              onclick="copyToClipboard(this)"
+            />
+          </div>
+          <div class="col-12 col-md-6">
+            <label for="longitude" class="form-label">Longitude</label>
+            <input
+              type="text"
+              class="form-control"
+              id="longitude"
+              readonly
+              onclick="copyToClipboard(this)"
+            />
+          </div>
+        </div>
+
+        <div class="d-grid mt-3">
+          <button class="btn btn-primary" onclick="getLocation()">
+            📍 Gunakan Lokasi Saya
+          </button>
+        </div>
+      </div>
+
+      <div id="map" class="shadow-sm"></div>
+
+      <!-- History Section -->
+      <div class="card shadow-sm p-3 mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">
+            Riwayat Lokasi
+            <span class="badge bg-primary history-badge" id="history-count"
+              >0</span
+            >
+          </h5>
+          <button
+            class="btn btn-sm btn-outline-danger"
+            onclick="confirmClearHistory()"
+          >
+            🗑️ Hapus Riwayat
+          </button>
+        </div>
+        <div id="location-history" class="history-container">
+          <div class="empty-history">
+            <div>📋</div>
+            <p class="mt-2">Belum ada riwayat lokasi</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toggle Dark/Light Mode -->
+      <div class="d-flex justify-content-center mt-3">
+        <div class="form-check form-switch">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            role="switch"
+            id="themeSwitch"
+          />
+          <label class="form-check-label" for="themeSwitch">🌙 Dark Mode</label>
+        </div>
+      </div>
+
+      <footer class="text-center mt-4 mb-2 text-body-secondary small">
+        Created by <strong>Andre Cahya</strong>
+      </footer>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+    <script>
+      // Inisialisasi Peta
+      let map = L.map("map").setView([0, 0], 2);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      // Variabel global
+      let marker = null;
+      let accuracyCircle = null;
+      let locationHistory =
+        JSON.parse(localStorage.getItem("locationHistory")) || [];
+      const loadingOverlay = document.getElementById("loadingOverlay");
+
+      // Fungsi untuk menampilkan loading
+      function showLoading() {
+        loadingOverlay.classList.add("active");
+      }
+
+      // Fungsi untuk menyembunyikan loading
+      function hideLoading() {
+        loadingOverlay.classList.remove("active");
+      }
+
+      // Fungsi untuk konfirmasi hapus history dengan SweetAlert
+      function confirmClearHistory() {
+        if (locationHistory.length === 0) {
+          Swal.fire({
+            icon: "info",
+            title: "Tidak ada riwayat",
+            text: "Tidak ada riwayat lokasi yang dapat dihapus.",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+          return;
+        }
+
+        Swal.fire({
+          title: "Hapus Riwayat?",
+          text: "Apakah Anda yakin ingin menghapus semua riwayat lokasi?",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#d33",
+          cancelButtonColor: "#6c757d",
+          confirmButtonText: "Ya, Hapus!",
+          cancelButtonText: "Batal",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            clearHistory();
+            Swal.fire({
+              icon: "success",
+              title: "Terhapus!",
+              text: "Riwayat lokasi berhasil dihapus.",
+              timer: 2000,
+              showConfirmButton: false,
+            });
+          }
+        });
+      }
+
+      // Fungsi untuk menyimpan dan menampilkan riwayat
+      function saveToHistory(lat, lon, accuracy) {
+        // Buat objek lokasi baru
+        const newLocation = {
+          id: Date.now(), // ID unik berdasarkan timestamp
+          name: `Lokasi ${locationHistory.length + 1}`,
+          lat: lat,
+          lon: lon,
+          accuracy: accuracy,
+          timestamp: new Date().toISOString(),
+        };
+
+        // Tambahkan ke awal array
+        locationHistory.unshift(newLocation);
+
+        // Batasi hanya 10 item terakhir
+        if (locationHistory.length > 10) {
+          locationHistory = locationHistory.slice(0, 10);
+        }
+
+        // Simpan ke localStorage
+        localStorage.setItem(
+          "locationHistory",
+          JSON.stringify(locationHistory)
+        );
+
+        // Perbarui tampilan
+        renderHistory();
+      }
+
+      // Fungsi untuk merender riwayat
+      function renderHistory() {
+        const historyContainer = document.getElementById("location-history");
+        const historyCount = document.getElementById("history-count");
+        historyCount.textContent = locationHistory.length;
+
+        if (locationHistory.length === 0) {
+          historyContainer.innerHTML = `
+            <div class="empty-history">
+              <div>📋</div>
+              <p class="mt-2">Belum ada riwayat lokasi</p>
+            </div>
+          `;
+          return;
+        }
+
+        historyContainer.innerHTML = "";
+
+        locationHistory.forEach((location, index) => {
+          const date = new Date(location.timestamp);
+          const timeString = date.toLocaleTimeString();
+          const dateString = date.toLocaleDateString("id-ID", {
+            weekday: "short",
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+
+          const historyItem = document.createElement("div");
+          historyItem.className = "card history-item";
+          historyItem.innerHTML = `
+            <div class="card-body py-2">
+              <div class="d-flex w-100 justify-content-between align-items-start">
+                <h6 class="card-title mb-1 editable-name" data-id="${
+                  location.id
+                }">
+                  ${location.name}
+                  ${
+                    index === 0
+                      ? '<span class="badge bg-success history-badge">Terbaru</span>'
+                      : ""
+                  }
+                </h6>
+                <small class="location-time">${timeString}</small>
+              </div>
+              <p class="card-text location-coords mb-1">Lat: ${location.lat}</p>
+              <p class="card-text location-coords mb-1">Lon: ${location.lon}</p>
+              <div class="d-flex justify-content-between align-items-center">
+                <small class="location-accuracy">Akurasi: ±${parseFloat(
+                  location.accuracy
+                ).toFixed(2)} meter</small>
+                <small class="location-time">${dateString}</small>
+              </div>
+            </div>
+          `;
+
+          // Event listener untuk mengklik item history
+          historyItem.addEventListener("click", (e) => {
+            if (
+              !e.target.classList.contains("editable-name") &&
+              !e.target.parentElement.classList.contains("editable-name")
+            ) {
+              document.getElementById("latitude").value = location.lat;
+              document.getElementById("longitude").value = location.lon;
+              map.setView(
+                [parseFloat(location.lat), parseFloat(location.lon)],
+                17
+              );
+
+              // Update marker
+              if (marker) {
+                map.removeLayer(marker);
+              }
+
+              marker = L.marker([
+                parseFloat(location.lat),
+                parseFloat(location.lon),
+              ])
+                .addTo(map)
+                .bindPopup(
+                  `
+                  <b>${location.name}</b><br>
+                  Lat: ${location.lat}<br>
+                  Lon: ${location.lon}<br>
+                  Akurasi: ±${parseFloat(location.accuracy).toFixed(2)} meter
+                `
+                )
+                .openPopup();
+
+              // Tampilkan notifikasi sukses
+              Swal.fire({
+                position: "center",
+                icon: "success",
+                title: "Lokasi dipilih",
+                text: `${location.name} telah ditampilkan di peta`,
+                confirmButtonColor: "#203659",
+                cancelButtonColor: "#cc1529",
+                confirmButtonText: "Continue",
+                cancelButtonText: "Cancel",
+                background: "#ffff",
+                color: "#5f5f5f",
+                showConfirmButton: false,
+                customClass: {
+                  popup: "dark-popup",
+                  title: "dark-title",
+                  content: "dark-content",
+                },
+                timer: 1500,
+              });
+            }
+          });
+
+          // Event listener untuk mengedit nama
+          const nameElement = historyItem.querySelector(".editable-name");
+          nameElement.addEventListener("click", (e) => {
+            e.stopPropagation();
+            Swal.fire({
+              title: "Ubah Nama Lokasi",
+              input: "text",
+              inputValue: location.name,
+              inputPlaceholder: "Masukkan nama lokasi",
+              showCancelButton: true,
+              confirmButtonColor: "#203659",
+              cancelButtonColor: "#cc1529",
+              confirmButtonText: "Continue",
+              cancelButtonText: "Cancel",
+              background: "#ffff",
+              color: "#5f5f5f",
+              customClass: {
+                popup: "dark-popup",
+                title: "dark-title",
+                content: "dark-content",
+              },
+              confirmButtonText: "Simpan",
+              cancelButtonText: "Batal",
+              inputValidator: (value) => {
+                if (!value) {
+                  return "Nama lokasi tidak boleh kosong!";
+                }
+                if (value.length > 20) {
+                  return "Nama lokasi maksimal 20 karakter!";
+                }
+              },
+            }).then((result) => {
+              if (result.isConfirmed) {
+                updateLocationName(location.id, result.value);
+                Swal.fire({
+                  icon: "success",
+                  title: "Berhasil",
+                  text: "Nama lokasi berhasil diubah",
+                  timer: 1500,
+                  showConfirmButton: false,
+                });
+              }
+            });
+          });
+
+          historyContainer.appendChild(historyItem);
+        });
+      }
+
+      // Fungsi untuk mengupdate nama lokasi
+      function updateLocationName(id, newName) {
+        const locationIndex = locationHistory.findIndex((loc) => loc.id === id);
+        if (locationIndex !== -1) {
+          locationHistory[locationIndex].name = newName;
+          localStorage.setItem(
+            "locationHistory",
+            JSON.stringify(locationHistory)
+          );
+          renderHistory();
+        }
+      }
+
+      // Fungsi untuk menghapus riwayat
+      function clearHistory() {
+        locationHistory = [];
+        localStorage.removeItem("locationHistory");
+        renderHistory();
+      }
+
+      // Fungsi untuk format angka tanpa trailing zero
+      function formatHighPrecision(number, maxDecimals = 12) {
+        // Konversi ke string dan hapus trailing zero
+        let str = number.toString();
+
+        // Jika ada titik desimal
+        if (str.includes(".")) {
+          // Hapus trailing zero
+          str = str.replace(/\.?0+$/, "");
+
+          // Jika perlu tambahkan digit hingga maxDecimals
+          const decimalPart = str.split(".")[1] || "";
+          if (decimalPart.length < maxDecimals) {
+            // Tambahkan nol hanya jika diperlukan untuk presisi
+            str = number.toFixed(maxDecimals).replace(/\.?0+$/, "");
+          }
+        }
+
+        return str;
+      }
+
+      // Ambil lokasi
+      function getLocation() {
+        if (navigator.geolocation) {
+          // Tampilkan loading overlay
+          showLoading();
+
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              hideLoading();
+              showPosition(position);
+            },
+            (error) => {
+              hideLoading();
+              showError(error);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 30000,
+              maximumAge: 0,
+            }
+          );
+        } else {
+          hideLoading();
+          Swal.fire({
+            icon: "error",
+            title: "Tidak didukung",
+            text: "Geolocation tidak didukung browser ini.",
+          });
+        }
+      }
+
+      function showPosition(position) {
+        const accuracy = position.coords.accuracy;
+        console.log("Data GPS lengkap:", position.coords);
+
+        if (accuracy > 100) {
+          // Jika akurasi buruk (>100 meter)
+          Swal.fire({
+            icon: "warning",
+            title: "Akurasi GPS Buruk",
+            html: "Akurasi GPS saat ini tidak optimal.<br><br>Silakan:<br>• Aktifkan GPS<br>• Buka di area terbuka<br>• Refresh halaman dan coba lagi",
+            confirmButtonText: "Mengerti",
+          });
+        } else {
+          // Tampilkan notifikasi sukses
+          Swal.fire({
+            position: "top-end",
+            icon: "success",
+            title: "Lokasi berhasil didapatkan",
+            text: `Akurasi: ±${accuracy.toFixed(2)} meter`,
+            showConfirmButton: false,
+            timer: 2000,
+          });
+        }
+
+        // Format koordinat
+        const lat = formatHighPrecision(position.coords.latitude);
+        const lon = formatHighPrecision(position.coords.longitude);
+
+        document.getElementById("latitude").value = lat;
+        document.getElementById("longitude").value = lon;
+
+        // Simpan ke riwayat
+        saveToHistory(lat, lon, accuracy);
+
+        // Hanya zoom jika akurasi baik
+        if (accuracy <= 100) {
+          map.setView(
+            [position.coords.latitude, position.coords.longitude],
+            17
+          );
+        } else {
+          map.setView(
+            [position.coords.latitude, position.coords.longitude],
+            10
+          );
+        }
+
+        // Remove existing marker
+        if (marker) {
+          map.removeLayer(marker);
+        }
+
+        // Add new marker dengan informasi akurasi
+        marker = L.marker([position.coords.latitude, position.coords.longitude])
+          .addTo(map)
+          .bindPopup(
+            `
+            <b>Lokasi Anda</b><br>
+            Lat: ${lat}<br>
+            Lon: ${lon}<br>
+            Akurasi: ±${accuracy.toFixed(2)} meter
+        `
+          )
+          .openPopup();
+
+        // Tambahkan circle untuk menunjukkan area akurasi
+        if (accuracyCircle) {
+          map.removeLayer(accuracyCircle);
+        }
+
+        accuracyCircle = L.circle(
+          [position.coords.latitude, position.coords.longitude],
+          {
+            radius: accuracy,
+            color: "blue",
+            fillColor: "#3388ff",
+            fillOpacity: 0.2,
+          }
+        ).addTo(map);
+      }
+
+      function showError(error) {
+        let errorMessage = "Error mendapatkan lokasi: ";
+
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage =
+              "Izin geolokasi ditolak. Silakan izinkan akses lokasi untuk menggunakan fitur ini.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage =
+              "Informasi lokasi tidak tersedia. Pastikan GPS atau koneksi internet aktif.";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Waktu permintaan lokasi habis. Silakan coba lagi.";
+            break;
+          case error.UNKNOWN_ERROR:
+            errorMessage =
+              "Error tidak diketahui. Silakan refresh halaman dan coba lagi.";
+            break;
+        }
+
+        Swal.fire({
+          icon: "error",
+          title: "Gagal mendapatkan lokasi",
+          text: errorMessage,
+          confirmButtonText: "Mengerti",
+        });
+      }
+
+      // Copy koordinat ke clipboard
+      function copyToClipboard(el) {
+        el.select();
+        document.execCommand("copy");
+
+        // Gunakan SweetAlert untuk notifikasi
+        Swal.fire({
+          position: "top-end",
+          icon: "success",
+          title: "Tersalin!",
+          text: `Koordinat ${el.value} berhasil disalin`,
+          showConfirmButton: false,
+          timer: 1500,
+        });
+      }
+
+      // Dark/Light mode toggle
+      const themeSwitch = document.getElementById("themeSwitch");
+      const htmlEl = document.documentElement;
+
+      // cek mode tersimpan
+      if (localStorage.getItem("theme")) {
+        htmlEl.setAttribute("data-bs-theme", localStorage.getItem("theme"));
+        themeSwitch.checked = localStorage.getItem("theme") === "dark";
+      }
+
+      themeSwitch.addEventListener("change", () => {
+        if (themeSwitch.checked) {
+          htmlEl.setAttribute("data-bs-theme", "dark");
+          localStorage.setItem("theme", "dark");
+          Swal.fire({
+            position: "top-end",
+            icon: "success",
+            title: "Mode Gelap Diaktifkan",
+            showConfirmButton: false,
+            timer: 1500,
+          });
+        } else {
+          htmlEl.setAttribute("data-bs-theme", "light");
+          localStorage.setItem("theme", "light");
+          Swal.fire({
+            position: "top-end",
+            icon: "success",
+            title: "Mode Terang Diaktifkan",
+            showConfirmButton: false,
+            timer: 1500,
+          });
+        }
+      });
+
+      // Render history saat halaman dimuat
+      document.addEventListener("DOMContentLoaded", renderHistory);
+    </script>
+  </body>
+</html>
