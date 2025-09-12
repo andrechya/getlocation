@@ -93,14 +93,37 @@
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
 
-      let marker;
+      // Variabel global
+      let marker = null;
+      let accuracyCircle = null;
+
+      // Fungsi untuk format angka tanpa trailing zero
+      function formatHighPrecision(number, maxDecimals = 12) {
+        // Konversi ke string dan hapus trailing zero
+        let str = number.toString();
+
+        // Jika ada titik desimal
+        if (str.includes(".")) {
+          // Hapus trailing zero
+          str = str.replace(/\.?0+$/, "");
+
+          // Jika perlu tambahkan digit hingga maxDecimals
+          const decimalPart = str.split(".")[1] || "";
+          if (decimalPart.length < maxDecimals) {
+            // Tambahkan nol hanya jika diperlukan untuk presisi
+            str = number.toFixed(maxDecimals).replace(/\.?0+$/, "");
+          }
+        }
+
+        return str;
+      }
 
       // Ambil lokasi
       function getLocation() {
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(showPosition, showError, {
             enableHighAccuracy: true,
-            timeout: 10000,
+            timeout: 30000,
             maximumAge: 0,
           });
         } else {
@@ -109,36 +132,90 @@
       }
 
       function showPosition(position) {
-        const lat = position.coords.latitude.toFixed(12);
-        const lon = position.coords.longitude.toFixed(12);
+        const accuracy = position.coords.accuracy;
+        console.log("Data GPS lengkap:", position.coords);
+
+        if (accuracy > 100) {
+          // Jika akurasi buruk (>100 meter)
+          alert(
+            "⚠️ Akurasi GPS buruk!\n\nSilakan:\n• Aktifkan GPS\n• Buka di area terbuka\n• Refresh halaman dan coba lagi"
+          );
+        }
+
+        // Format koordinat
+        const lat = formatHighPrecision(position.coords.latitude);
+        const lon = formatHighPrecision(position.coords.longitude);
 
         document.getElementById("latitude").value = lat;
         document.getElementById("longitude").value = lon;
 
-        map.setView([lat, lon], 17);
+        // Hanya zoom jika akurasi baik
+        if (accuracy <= 100) {
+          map.setView(
+            [position.coords.latitude, position.coords.longitude],
+            17
+          );
+        } else {
+          map.setView(
+            [position.coords.latitude, position.coords.longitude],
+            10
+          );
+        }
 
-        if (marker) map.removeLayer(marker);
+        // Remove existing marker
+        if (marker) {
+          map.removeLayer(marker);
+        }
 
-        marker = L.marker([lat, lon])
+        // Add new marker dengan informasi akurasi
+        marker = L.marker([position.coords.latitude, position.coords.longitude])
           .addTo(map)
-          .bindPopup(`Lokasi Anda<br>Lat: ${lat}<br>Lon: ${lon}`)
+          .bindPopup(
+            `
+            <b>Lokasi Anda</b><br>
+            Lat: ${lat}<br>
+            Lon: ${lon}<br>
+            Akurasi: ±${accuracy.toFixed(2)} meter
+        `
+          )
           .openPopup();
+
+        // Tambahkan circle untuk menunjukkan area akurasi
+        if (accuracyCircle) {
+          map.removeLayer(accuracyCircle);
+        }
+
+        accuracyCircle = L.circle(
+          [position.coords.latitude, position.coords.longitude],
+          {
+            radius: accuracy,
+            color: "blue",
+            fillColor: "#3388ff",
+            fillOpacity: 0.2,
+          }
+        ).addTo(map);
       }
 
       function showError(error) {
-        let msg = "Terjadi error.";
+        let errorMessage = "Error mendapatkan lokasi: ";
+
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            msg = "User menolak permintaan lokasi.";
+            errorMessage += "Izin geolokasi ditolak";
             break;
           case error.POSITION_UNAVAILABLE:
-            msg = "Informasi lokasi tidak tersedia.";
+            errorMessage += "Informasi lokasi tidak tersedia";
             break;
           case error.TIMEOUT:
-            msg = "Permintaan lokasi timeout.";
+            errorMessage += "Waktu permintaan lokasi habis";
+            break;
+          case error.UNKNOWN_ERROR:
+            errorMessage += "Error tidak diketahui";
             break;
         }
-        alert(msg);
+
+        console.error(errorMessage);
+        alert(errorMessage);
       }
 
       // Copy koordinat ke clipboard
